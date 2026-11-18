@@ -182,7 +182,8 @@ Tests: `go test -race ./...`
 
 ## Licence and credits
 
-PulseUSB is released under the [MIT licence](LICENSE).
+PulseUSB is released under the [MIT licence](LICENSE). Windows releases are
+to be signed as described in the [code signing policy](CODE_SIGNING_POLICY.md).
 It builds on [usbip-win2](https://github.com/vadimgrn/usbip-win2), the
 [usb.ids](http://www.linux-usb.org/usb-ids.html) database and the Go
 libraries listed in [THIRD_PARTY.md](THIRD_PARTY.md); their licences are in
