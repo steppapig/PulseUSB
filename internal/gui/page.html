@@ -1,0 +1,905 @@
+<!doctype html>
+<html lang="en" data-theme="__THEME__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PulseUSB</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/icon.png">
+<style>
+  /* Light colours by default; dark when the system is dark, unless the
+     user fixed the theme in Settings (data-theme on the root element). */
+  :root {
+    color-scheme: light;
+    --bg: #f4f5f7; --panel: #ffffff; --sunk: #eceff3; --text: #1b1f24; --muted: #5d6675; --line: #d5dae1;
+    --accent: #1f6feb; --ok: #1a7f37; --warn: #9a6700; --bad: #cf222e; --off: #7b8490;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme=light]) {
+      color-scheme: dark;
+      --bg: #14171b; --panel: #1d2126; --sunk: #171a1f; --text: #e6e9ed; --muted: #98a2ae; --line: #30363d;
+      --accent: #4c9aff; --ok: #3fb950; --warn: #d29922; --bad: #f85149; --off: #6e7681;
+    }
+  }
+  :root[data-theme=dark] {
+    color-scheme: dark;
+    --bg: #14171b; --panel: #1d2126; --sunk: #171a1f; --text: #e6e9ed; --muted: #98a2ae; --line: #30363d;
+    --accent: #4c9aff; --ok: #3fb950; --warn: #d29922; --bad: #f85149; --off: #6e7681;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  header img { border-radius: 8px; }
+  header .title { font-size: 20px; font-weight: 600; margin-right: auto; }
+  .tabs { display: flex; gap: 2px; padding: 3px; background: var(--sunk); border: 1px solid var(--line); border-radius: 9px; }
+  .tabs button { padding: 5px 14px; font-weight: 500; color: var(--muted); background: transparent; border-radius: 6px; }
+  .tabs button[aria-selected=true] { color: var(--text); background: var(--panel); box-shadow: 0 0 0 1px var(--line); }
+  h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+       color: var(--muted); margin: 20px 0 8px; }
+  section > h2:first-child { margin-top: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .panel + .panel { margin-top: 12px; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; }
+  .row + .row, .item + .item, .row + .item, .item + .row { border-top: 1px solid var(--line); }
+  .grow { flex: 1; min-width: 0; }
+  .name { font-weight: 600; overflow-wrap: anywhere; }
+  .sub { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .badge { display: inline-block; padding: 0 7px; margin-left: 6px; font-size: 11px; font-weight: 500; line-height: 18px;
+       color: var(--muted); border: 1px solid var(--line); border-radius: 9px; vertical-align: 1px; white-space: nowrap; }
+  input[type=text] { min-width: 0; padding: 6px 9px; font: inherit; color: var(--text);
+       background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+  .row > input[type=text] { flex: 1; }
+  button { padding: 7px 14px; font: inherit; font-weight: 600; color: #fff; background: var(--accent);
+       border: 0; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+  button.quiet { color: var(--accent); background: transparent; border: 1px solid var(--line); }
+  button.small { padding: 4px 10px; font-size: 13px; }
+  button.ghost { padding: 4px 8px; font-size: 13px; font-weight: 500; color: var(--muted); background: transparent; }
+  button.ghost:hover, button.ghost[aria-expanded=true] { color: var(--text); background: var(--sunk); }
+  button:disabled { opacity: .45; cursor: default; }
+  input:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .status { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; color: var(--off); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--off); flex: none; }
+  .connected .dot { background: var(--ok); } .connected { color: var(--ok); }
+  .connecting .dot { background: var(--warn); } .connecting { color: var(--warn); }
+  .status.away { color: var(--warn); } .status.away .dot { background: transparent; border: 2px solid var(--warn); width: 6px; height: 6px; }
+  .error .dot { background: var(--bad); } .error { color: var(--bad); }
+  .opts { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; align-items: center;
+       padding: 12px 14px 14px; background: var(--sunk); border-top: 1px solid var(--line); font-size: 13px; }
+  .opts label { color: var(--muted); }
+  .opts input[type=text], .opts select { width: 100%; max-width: 320px; }
+  .opts .wide { grid-column: 1 / -1; }
+  .warnline { color: var(--warn); }
+  button.capture { color: var(--accent); background: var(--sunk); outline: 2px solid var(--accent); }
+  input.rename { width: 100%; max-width: 260px; font-weight: 600; }
+  select { font: inherit; color: var(--text); background: var(--bg);
+       border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; }
+  .banner { margin-bottom: 12px; padding: 9px 12px; border-radius: 6px; font-size: 13px;
+       color: var(--bad); border: 1px solid var(--bad); overflow-wrap: anywhere; }
+  .found { flex-wrap: wrap; font-size: 13px; color: var(--muted); gap: 8px; }
+  .notice { border-color: var(--warn); margin-bottom: 16px; }
+  .empty { padding: 16px 14px; color: var(--muted); }
+  .srvhead { display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--sunk);
+       font-size: 12px; color: var(--muted); }
+  .srvhead b { color: var(--text); font-weight: 600; }
+  label.check { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+  label.check.disabled { color: var(--off); cursor: default; }
+  footer { margin-top: 16px; font-size: 12px; color: var(--muted); text-align: center; }
+  .hint { margin-top: 8px; font-size: 12px; color: var(--muted); }
+  #timings { margin: 0; padding: 10px 14px; font: 12px/1.6 ui-monospace, Consolas, monospace; white-space: pre-wrap;
+       overflow-wrap: anywhere; color: var(--muted); }
+  footer button.ghost { font-size: 12px; padding: 2px 6px; }
+  #licText { margin: 8px 0 0; padding: 12px 14px; max-height: 360px; overflow: auto; font: 11px/1.5 ui-monospace, Consolas, monospace;
+       white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
+  #groupsBox { margin-bottom: 12px; }
+  .pair { display: flex; gap: 8px; }
+  #setup { margin-bottom: 20px; }
+  .step .mark { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 50%;
+       font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); }
+  .step.next .mark { color: #fff; background: var(--accent); border-color: var(--accent); }
+  .step.done .mark { color: var(--ok); border-color: var(--ok); }
+  .step.done .name { font-weight: 400; color: var(--muted); }
+  button.chev { width: 28px; padding: 4px 0; font-size: 14px; }
+  button.chev[aria-expanded] { background: transparent; }
+  button.chev:hover { background: var(--sunk); }
+  #groups .item { background: var(--panel); }
+  /* Every row in the device lists has the same columns, so names, states
+     and buttons line up: a lead (the fold arrow on group rows), the name,
+     a short status, one main button and ⋯ for the rest. */
+  .grid { display: grid; grid-template-columns: 26px minmax(0, 1fr) 128px 124px 30px;
+       align-items: center; column-gap: 10px; padding: 11px 12px; }
+  .grid > .lead { grid-column: 1; grid-row: 1; }
+  .grid > .info { grid-column: 2; grid-row: 1; min-width: 0; }
+  .grid > .status { grid-column: 3; grid-row: 1; }
+  .grid > .act { grid-column: 4; grid-row: 1; }
+  .grid > .more { grid-column: 5; grid-row: 1; }
+  .grid .act button { width: 100%; }
+  .grid .status span:last-child { overflow: hidden; text-overflow: ellipsis; }
+  .grid.head .name { font-size: 15px; }
+  .item + .item, .grid.head + .item, .tools + .item, .grid.head + .tools, .grid.head + .empty { border-top: 1px solid var(--line); }
+  button.dots { width: 30px; padding: 2px 0; font-size: 18px; line-height: 1; letter-spacing: 1px; }
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px 12px 48px; background: var(--sunk); }
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: 26px minmax(0, 1fr) 112px 30px; row-gap: 4px; }
+    .grid > .status { grid-column: 2; grid-row: 2; }
+    .grid > .act { grid-column: 3; }
+    .grid > .more { grid-column: 4; }
+    .tools, .opts { padding-left: 12px; }
+  }
+  .opts { padding-left: 48px; }
+  .footline { display: flex; align-items: center; gap: 10px; }
+  .hiddenline { margin-top: 8px; text-align: center; }
+  .item.dim .name, .item.dim .sub, .item.dim .status { opacity: .55; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="/icon.png" alt="" width="36" height="36">
+    <span class="title">PulseUSB</span>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-devices" data-tab="devices">Devices</button>
+      <button type="button" role="tab" id="tab-servers" data-tab="servers">Servers</button>
+      <button type="button" role="tab" id="tab-settings" data-tab="settings">Settings</button>
+    </div>
+  </header>
+
+  <div class="panel notice" id="driver" hidden>
+    <div class="row">
+      <div class="grow">
+        <div class="name">USB driver needed</div>
+        <div class="sub" id="driverText">Windows needs the free usbip-win2 driver to show remote devices as plugged in. This downloads and installs it; Windows will ask for permission once.</div>
+      </div>
+      <button type="button" id="driverBtn">Install driver</button>
+    </div>
+  </div>
+  <div class="panel notice" id="bootStale" hidden>
+    <div class="row">
+      <div class="grow">
+        <div class="name">Starting at boot needs to be set up again</div>
+        <div class="sub">PulseUSB was updated, moved or reinstalled since "At boot, before sign-in" was switched on, so Windows is no longer starting it before you sign in. Setting it up again asks for administrator permission once.</div>
+      </div>
+      <button type="button" id="bootFix">Set up again</button>
+    </div>
+  </div>
+  <div class="banner" id="banner" hidden></div>
+
+  <section id="devices" role="tabpanel" aria-labelledby="tab-devices">
+    <div id="setup" hidden>
+      <h2>Getting started</h2>
+      <div class="panel" id="steps"></div>
+    </div>
+    <div id="groupsBox" hidden>
+      <h2>Groups</h2>
+      <div id="groups"></div>
+    </div>
+    <h2 id="devHead">Devices</h2>
+    <div id="deviceList"></div>
+  </section>
+
+  <section id="servers" role="tabpanel" aria-labelledby="tab-servers" hidden>
+    <h2>Your servers</h2>
+    <div class="panel" id="serverList"></div>
+    <h2>Add a server</h2>
+    <div class="panel">
+      <div class="row found" id="found">Searching the network…</div>
+      <form class="row" id="hostForm">
+        <input type="text" id="host" placeholder="Or type an address, e.g. 192.168.1.50" aria-label="Server address" autocomplete="off" spellcheck="false">
+        <button type="submit">Connect</button>
+      </form>
+    </div>
+  </section>
+
+  <section id="settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+    <div class="panel" id="serviceNote" hidden>
+      <div class="row"><div class="grow"><div class="name">Running as a system service</div>
+        <div class="sub">PulseUSB starts with this computer and keeps auto-connect devices connected, whether or not this window is open. Manage it with "systemctl status pulseusb".</div></div></div>
+    </div>
+    <div id="startupBox">
+    <h2>Startup</h2>
+    <div class="panel">
+      <div class="row">
+        <div class="grow">
+          <label for="startMode" id="startLabel">Start with Windows</label>
+          <div class="sub" id="startHint"></div>
+        </div>
+        <select id="startMode">
+          <option value="off">Off</option>
+          <option value="signin">When I sign in</option>
+          <option value="boot" id="bootOption">At boot, before sign-in</option>
+        </select>
+      </div>
+      <div class="row"><label class="check"><input type="checkbox" id="minimized"> Start minimized to the tray</label></div>
+    </div>
+    </div>
+    <div id="shortcutsBox" hidden>
+    <h2>Keyboard shortcuts</h2>
+    <div class="panel">
+      <div class="row">
+        <div class="grow">
+          <div>Disconnect everything</div>
+          <div class="sub" id="allOffErr"></div>
+        </div>
+        <span id="allOffSlot"></span>
+      </div>
+      <div class="row"><div class="sub">Shortcuts work anywhere in Windows, also with this window closed. Each group can have its own: set it with the ⌨ button on the group.</div></div>
+    </div>
+    </div>
+    <h2>Keyboard and mouse stuck on another computer?</h2>
+    <div class="panel">
+      <div class="row"><div class="sub">If the keyboard and mouse you share are in use on another computer, press <b>Ctrl+Alt+Shift+F12</b> on that keyboard. The server takes every device back for the machine it is plugged into. Press the same keys there to share them again, or use Take over here. (Needs the server from PulseUSB 0.23 or later.)</div></div>
+    </div>
+    <h2>Appearance</h2>
+    <div class="panel">
+      <div class="row">
+        <label class="grow" for="theme">Theme</label>
+        <select id="theme">
+          <option value="">Same as the system</option>
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+      </div>
+    </div>
+    <div id="windowBox">
+    <h2>Window</h2>
+    <div class="panel">
+      <div class="row"><label class="check"><input type="checkbox" id="toTray"> Minimize to the tray instead of the taskbar</label></div>
+      <div class="row" id="installRow" hidden>
+        <div class="grow"><div>Install on this PC</div><div class="sub">Copies the app out of this folder to a permanent place and adds it to the Start menu.</div></div>
+        <button type="button" class="quiet" id="installBtn">Install</button>
+      </div>
+    </div>
+    </div>
+    <div id="timingBox" hidden>
+      <h2>Recent timings</h2>
+      <div class="panel"><pre id="timings"></pre></div>
+      <div class="hint">How long recent connects took, and any background check of the servers that took over a second. Useful when reporting a slow connect.</div>
+    </div>
+    <footer><span id="footer"></span> · <button type="button" class="ghost" id="licBtn" aria-expanded="false">Open-source licences</button></footer>
+    <pre class="panel" id="licText" hidden></pre>
+  </section>
+</main>
+<script>
+const token = "__TOKEN__";
+const $ = id => document.getElementById(id);
+const labels = { connected: "Connected", connecting: "Connecting…", disconnected: "Not connected", error: "Failed" };
+const open = new Set();      // devices whose options are expanded
+const advanced = new Map();  // device -> whether its advanced options are open (when the user chose)
+let showHidden = false;      // whether hidden devices are listed
+const openTools = new Set();  // groups whose ⋯ (shortcut, rename, delete) is open
+let ungroupedFolded = false;  // whether the "Ungrouped" folder is folded away
+try { ungroupedFolded = !!localStorage.getItem("ungroupedFolded"); } catch (e) {}
+const openGroups = new Set(); // groups whose devices are shown
+try { for (const g of JSON.parse(localStorage.getItem("groups") || "[]")) openGroups.add(g); } catch (e) {}
+let holdUntil = 0;           // no redraw before this time (a field is being swapped in)
+let last = null;
+let searchingSince = Date.now(); // when the search for a first server started
+let setupDrawn = "";             // the getting-started steps currently shown
+let drawn = "";              // the state the page currently shows, to skip needless redraws
+let pressing = false;        // a mouse button or finger is down: redrawing now would lose the click
+addEventListener("pointerdown", () => { pressing = true; }, true);
+for (const ev of ["pointerup", "pointercancel"]) {
+  // Released: let the click reach its button first, then allow redraws again.
+  addEventListener(ev, () => setTimeout(() => { pressing = false; }, 0), true);
+}
+
+async function call(path, body) {
+  const r = await fetch(path, {
+    method: body ? "POST" : "GET",
+    headers: { "X-Token": token, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+const act = (path, body) => call(path, body).then(s => render(s)).catch(fail);
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function button(text, cls, fn, label) {
+  const b = el("button", cls, text);
+  b.type = "button";
+  b.onclick = fn;
+  if (label) b.setAttribute("aria-label", label);
+  return b;
+}
+const shortAddr = a => a.replace(/:3240$/, "");
+
+// ---- tabs
+function showTab(name) {
+  for (const t of document.querySelectorAll("[role=tab]")) {
+    const on = t.dataset.tab === name;
+    t.setAttribute("aria-selected", on);
+    $(t.dataset.tab).hidden = !on;
+  }
+  try { localStorage.setItem("tab", name); } catch (e) {}
+}
+for (const t of document.querySelectorAll("[role=tab]")) t.onclick = () => showTab(t.dataset.tab);
+let startTab = "devices";
+try { startTab = localStorage.getItem("tab") || startTab; } catch (e) {}
+showTab($(startTab) ? startTab : "devices");
+
+// While the user is typing in, or choosing from, a device's options, the
+// lists must not be rebuilt underneath them.
+function busy() {
+  const a = document.activeElement;
+  return Date.now() < holdUntil ||
+    !!(a && a.matches && (a.matches("input.rename, .capture") || (a.matches("input[type=text], select") && a.closest(".opts"))));
+}
+
+// shortcutButton shows an action's keyboard shortcut and lets the user set
+// it: click, then press the keys. Esc cancels, Backspace removes it.
+const keyNames = code =>
+  /^Key[A-Z]$/.test(code) ? code.slice(3) :
+  /^Digit[0-9]$/.test(code) ? code.slice(5) :
+  /^Numpad[0-9]$/.test(code) ? "Num" + code.slice(6) :
+  /^F([1-9]|1[0-9]|2[0-4])$/.test(code) ? code :
+  ["Space", "PageUp", "PageDown", "Home", "End", "Insert", "Delete", "Pause"].includes(code) ? code : "";
+function shortcutButton(target, combo, label, tip) {
+  const b = button(combo ? "⌨ " + combo : "⌨ Shortcut", "ghost", () => {
+    holdUntil = Date.now() + 800;
+    b.classList.add("capture");
+    b.textContent = "Press keys… (Esc cancels, Backspace removes)";
+    b.focus();
+    b.onkeydown = ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const finish = () => { b.onkeydown = null; b.classList.remove("capture"); holdUntil = 0; b.blur(); };
+      if (ev.key === "Escape") { finish(); return render(last, true); }
+      if (ev.key === "Backspace" && !ev.ctrlKey && !ev.altKey && !ev.metaKey) { finish(); return act("/api/shortcut", { target, combo: "" }); }
+      const key = keyNames(ev.code);
+      if (!key) return; // a modifier on its own: wait for the key
+      if (!ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+        b.textContent = "Hold Ctrl, Alt or Win as well…";
+        return;
+      }
+      const mods = [ev.ctrlKey && "Ctrl", ev.altKey && "Alt", ev.shiftKey && "Shift", ev.metaKey && "Win"].filter(Boolean);
+      finish();
+      act("/api/shortcut", { target, combo: mods.concat(key).join("+") });
+    };
+    b.onblur = () => { if (b.classList.contains("capture")) { b.onkeydown = null; b.classList.remove("capture"); if (last) render(last, true); } };
+  }, label);
+  b.title = tip;
+  return b;
+}
+
+function field(box, label, control) {
+  const l = el("label", "", label);
+  const id = "f" + Math.random().toString(36).slice(2);
+  control.id = id;
+  l.htmlFor = id;
+  box.append(l, control);
+}
+
+function options(s, sv, d) {
+  const box = el("div", "opts");
+  const dev = { host: sv.host, busid: d.busid };
+
+  const name = el("input");
+  name.type = "text";
+  name.value = d.alias;
+  name.placeholder = d.name || d.kind;
+  name.maxLength = 60;
+  name.onchange = () => act("/api/device/alias", { ...dev, alias: name.value.trim() });
+  name.onkeydown = ev => { if (ev.key === "Enter") name.blur(); };
+  field(box, "Your name for it", name);
+
+  const NEW = "\u0000new";
+  const grp = el("select");
+  for (const [v, t] of [["", "Ungrouped"], ...s.groupNames.map(g => [g, g]), [NEW, "New group…"]]) {
+    const o = el("option", "", t);
+    o.value = v;
+    grp.append(o);
+  }
+  grp.value = d.group;
+  grp.onchange = () => {
+    if (grp.value !== NEW) {
+      grp.blur(); // let the lists redraw with the result
+      return act("/api/device/group", { ...dev, group: grp.value });
+    }
+    // Swap the dropdown for a text box to name the new group.
+    holdUntil = Date.now() + 800;
+    const input = el("input");
+    input.type = "text";
+    input.placeholder = "Group name, e.g. Sim rig";
+    input.maxLength = 30;
+    input.id = grp.id;
+    let done = false;
+    const finish = save => {
+      if (done) return;
+      done = true;
+      holdUntil = 0;
+      input.blur(); // let the lists redraw with the result
+      if (save && input.value.trim()) act("/api/device/group", { ...dev, group: input.value.trim() });
+      else if (last) render(last);
+    };
+    input.onkeydown = ev => {
+      if (ev.key === "Enter") finish(true);
+      if (ev.key === "Escape") finish(false);
+    };
+    input.onblur = () => {
+      // Focus can bounce while the box is put in place; take it back
+      // rather than treating that as the user leaving.
+      if (Date.now() < holdUntil) return setTimeout(() => { if (!done) input.focus(); }, 0);
+      finish(true);
+    };
+    grp.replaceWith(input);
+    setTimeout(() => { if (!done) input.focus(); }, 0);
+  };
+  field(box, "Group", grp);
+
+  if (s.modes) {
+    const sel = el("select");
+    const auto = d.mode === "auto" ? " (" + (d.actual === "zero-copy" ? "bulk data" : "low latency") + ")" : "";
+    for (const [v, t] of [["auto", "Automatic" + auto], ["low-latency", "Low latency (wheels, pedals, sound)"], ["zero-copy", "Bulk data (cameras, storage)"]]) {
+      const o = el("option", "", t);
+      o.value = v;
+      sel.append(o);
+    }
+    sel.value = d.mode;
+    sel.onchange = () => { sel.blur(); act("/api/device/mode", { ...dev, mode: sel.value }); };
+    // A troubleshooting control: kept out of the way unless it is in use.
+    const key = sv.host + "|" + d.id;
+    // "Advanced" is a toggle that stays where it is: open it, close it
+    // again. It starts open on a device whose mode was changed.
+    const shown = advanced.has(key) ? advanced.get(key) : d.mode !== "auto";
+    const more = el("div", "wide");
+    const tog = button((shown ? "▾" : "▸") + " Advanced", "ghost", () => { advanced.set(key, !shown); render(last, true); },
+      (shown ? "Hide" : "Show") + " advanced options for " + (d.alias || d.name || d.kind));
+    tog.setAttribute("aria-expanded", shown);
+    more.append(tog);
+    box.append(more);
+    if (shown) {
+      field(box, "Receive mode", sel);
+      box.append(el("div", "sub wide", "Only change this if the device stutters or misbehaves. Changing it reconnects the device."));
+    }
+  }
+
+  const lab = el("label", "check wide");
+  const cb = el("input");
+  cb.type = "checkbox";
+  cb.checked = d.auto;
+  cb.onchange = () => act("/api/device/auto", { ...dev, on: cb.checked });
+  lab.append(cb, "Auto-connect: always keep this device connected, also after a restart");
+  lab.style.color = "var(--text)";
+  box.append(lab);
+
+  const foot = el("div", "wide footline");
+  foot.append(el("span", "sub grow", (d.name ? d.name + " · " : "") + d.kind + " · ID " + d.id + " · port " + d.busid),
+    button("Hide this device", "ghost", () => { open.delete(sv.host + "|" + d.id); act("/api/device/hide", { ...dev, on: true }); },
+      "Hide " + (d.alias || d.name || d.kind)));
+  box.append(foot);
+  return box;
+}
+
+// inGroup: the row is shown inside its group's panel.
+function deviceItem(s, sv, d, inGroup) {
+  const key = sv.host + "|" + d.id;
+  const item = el("div", "item");
+  const row = el("div", "grid");
+  const shown = d.alias || d.name || d.kind;
+  const from = s.servers.length > 1 ? " · on " + (sv.name || shortAddr(sv.host)) : "";
+  const paused = d.paused && d.status === "disconnected";
+  const away = d.status === "elsewhere" || d.status === "kept";
+
+  // Name, with the detail of the moment underneath.
+  const info = el("div", "info");
+  const title = el("div", "name", shown);
+  if (d.auto) title.append(el("span", "badge", "Auto"));
+  if (d.group && !inGroup) title.append(el("span", "badge", d.group));
+  const detail = d.error ? d.error
+    : d.status === "elsewhere" ? "In use on " + d.elsewhere
+    : d.status === "kept" ? "Taken back by " + (sv.name || shortAddr(sv.host)) + " itself"
+    : paused ? "Auto-connect resumes when PulseUSB restarts"
+    : (d.alias && d.name ? d.name : d.kind) + from;
+  info.append(title, el("div", "sub" + (d.error ? " warnline" : ""), detail));
+
+  // A short status, always in the same place.
+  const st = el("div", "status " + d.status + (away ? " away" : ""));
+  const label = paused ? "Off until restart" : d.status === "elsewhere" ? "Elsewhere"
+    : d.status === "kept" ? "On the server" : labels[d.status] || d.status;
+  st.append(el("span", "dot"), el("span", "", label));
+  if (paused) st.title = "Auto-connect is on, but you disconnected this device. It stays off until PulseUSB restarts or you connect it again.";
+  if (d.status === "elsewhere") st.title = "Another computer is using this device. Take over to use it here; it then disappears from that computer.";
+  if (d.status === "kept") st.title = "The server machine took this device back for itself. Take over to use it here again.";
+
+  // One main button.
+  const actCell = el("div", "act");
+  const moreCell = el("div", "more");
+  if (d.hidden) {
+    item.classList.add("dim");
+    actCell.append(button("Unhide", "quiet small", () => act("/api/device/hide", { host: sv.host, busid: d.busid, on: false }), "Unhide " + shown));
+  } else {
+    const on = d.status === "connected" || d.status === "connecting";
+    const verb = on ? "Disconnect" : away ? "Take over" : d.status === "error" ? "Retry" : "Connect";
+    // Outlined: the filled style is kept for a group's main action, so a
+    // list of devices does not turn into a wall of blue.
+    actCell.append(button(verb, "quiet small",
+      () => away ? act("/api/device/takeover", { host: sv.host, busid: d.busid })
+                 : act("/api/device/connect", { host: sv.host, busid: d.busid, on: !on }), verb + " " + shown));
+    const more = button("⋯", "ghost dots", () => {
+      open.has(key) ? open.delete(key) : open.add(key);
+      if (last) render(last, true);
+    }, "Options for " + shown);
+    more.title = "Options";
+    more.setAttribute("aria-expanded", open.has(key));
+    moreCell.append(more);
+  }
+  row.append(el("div", "lead"), info, st, actCell, moreCell);
+  item.append(row);
+  if (!d.hidden && open.has(key)) item.append(options(s, sv, d));
+  return item;
+}
+
+function renderSetup(s) {
+  let finished = false;
+  try { finished = !!localStorage.getItem("setupDone"); } catch (e) {}
+  const devices = s.servers.flatMap(sv => sv.devices);
+  const steps = [];
+  if (s.os === "windows") {
+    steps.push({
+      done: !s.driverMissing,
+      title: "Install the USB driver",
+      text: s.driverStatus || "Windows needs the free usbip-win2 driver to show remote devices as plugged in. This downloads and installs it; Windows will ask for permission once.",
+      action: ["Install driver", () => act("/api/driver", {})],
+    });
+  }
+  const first = s.found[0];
+  // After a while without finding one, say what is needed instead of
+  // searching silently for ever.
+  if (first || s.servers.length) searchingSince = Date.now();
+  const stuck = Date.now() - searchingSince > 10000;
+  steps.push({
+    done: s.servers.length > 0,
+    title: "Add a server",
+    text: first ? "Found \"" + first.name + "\" on your network."
+      : stuck ? "No server found yet. Install the PulseUSB server on the computer your USB devices are plugged into (Linux), and make sure both computers are on the same network. If a firewall is running there, port 3240 must be open. This step continues by itself as soon as a server appears."
+      : "Searching your network for a computer running the PulseUSB server…",
+    action: first ? ["Add " + first.name, () => act("/api/server/add", { host: first.addr, name: first.name })]
+                  : ["Enter an address", () => showTab("servers")],
+  });
+  steps.push({
+    done: devices.some(d => d.auto || d.status === "connected"),
+    title: "Connect a device",
+    text: devices.length ? "Press Connect on a device below. Open its Options to keep it connected automatically."
+                         : "Devices shared by your server will be listed below.",
+  });
+  const all = steps.every(st => st.done);
+  if (all && !finished) { try { localStorage.setItem("setupDone", "1"); } catch (e) {} }
+  $("setup").hidden = all || finished;
+  if ($("setup").hidden) return;
+  const next = steps.findIndex(st => !st.done);
+  // Redraw the steps only when they changed, so their buttons stay put.
+  const sig = JSON.stringify(steps.map(st => [st.done, st.title, st.text, st.action && st.action[0]])) + next;
+  if (sig === setupDrawn) return;
+  setupDrawn = sig;
+  $("steps").replaceChildren(...steps.map((st, i) => {
+    const row = el("div", "row step" + (st.done ? " done" : i === next ? " next" : ""));
+    const mark = el("span", "mark", st.done ? "✓" : String(i + 1));
+    mark.setAttribute("aria-hidden", "true");
+    const info = el("div", "grow");
+    info.append(el("div", "name", st.title + (st.done ? " (done)" : "")));
+    if (!st.done) info.append(el("div", "sub", st.text));
+    row.append(mark, info);
+    if (i === next && st.action) row.append(button(st.action[0], "small", st.action[1]));
+    return row;
+  }));
+}
+
+function render(s, force) {
+  last = s;
+  // Rebuilding the lists replaces every button and menu. Do it only when
+  // something changed, and never in the middle of a click; a skipped
+  // redraw is caught up by the next update a second later.
+  const sig = JSON.stringify(s);
+  if (!force && (sig === drawn || pressing)) return;
+  drawn = sig;
+  $("footer").textContent = "PulseUSB " + s.version;
+  $("timingBox").hidden = !s.timings.length;
+  $("timings").textContent = s.timings.join("\n");
+  renderSetup(s);
+  // While the getting-started list is showing, it carries the driver step.
+  $("driver").hidden = !s.driverMissing || !$("setup").hidden;
+  if (s.driverStatus) $("driverText").textContent = s.driverStatus;
+  $("bootStale").hidden = !s.backgroundStale;
+  $("banner").hidden = !s.error;
+  $("banner").textContent = s.error || "";
+
+  // Settings
+  $("startLabel").textContent = s.os === "windows" ? "Start with Windows" : "Start with this computer";
+  $("shortcutsBox").hidden = !s.hotkeysSupported;
+  if (s.hotkeysSupported && !document.querySelector("#allOffSlot .capture")) {
+    $("allOffSlot").replaceChildren(shortcutButton("all:off", (s.shortcuts || {})["all:off"], "Keyboard shortcut to disconnect everything",
+      "Disconnects every device connected to this computer"));
+    $("allOffErr").textContent = (s.shortcutErrors || {})["all:off"] || "";
+  }
+  document.documentElement.dataset.theme = s.theme;
+  if (document.activeElement !== $("theme")) $("theme").value = s.theme;
+  $("startupBox").hidden = $("windowBox").hidden = !s.autostartSupported;
+  $("serviceNote").hidden = s.autostartSupported;
+  const mode = s.background ? "boot" : s.autostart ? "signin" : "off";
+  if (document.activeElement !== $("startMode")) $("startMode").value = mode;
+  $("bootOption").hidden = $("bootOption").disabled = !s.backgroundSupported;
+  $("startHint").textContent = {
+    off: "PulseUSB only runs when you start it.",
+    signin: "The tray icon appears when you sign in, and auto-connect devices are plugged in then.",
+    boot: "Auto-connect devices are plugged in as soon as the computer boots, before anyone signs in; the tray icon appears at sign-in. Takes effect from the next restart.",
+  }[mode];
+  $("minimized").checked = s.startMinimized;
+  $("toTray").checked = s.minimizeToTray;
+  $("installRow").hidden = !s.appInstallable;
+
+  // Servers
+  const list = $("serverList");
+  list.replaceChildren();
+  if (!s.servers.length) list.append(el("div", "empty", "No servers yet. Pick one below."));
+  for (const sv of s.servers) {
+    const row = el("div", "row");
+    const info = el("div", "grow");
+    const n = sv.devices.filter(d => d.status === "connected").length;
+    info.append(el("div", "name", sv.name || shortAddr(sv.host)),
+      el("div", "sub", sv.error || shortAddr(sv.host) + " · " + n + " of " + sv.devices.length + " devices connected"));
+    const st = el("div", "status " + (sv.ok ? "connected" : "connecting"));
+    st.append(el("span", "dot"), el("span", "", sv.ok ? "Online" : "Unreachable"));
+    const rm = button("Remove", "quiet small", () => act("/api/server/remove", { host: sv.host }),
+      "Remove server " + (sv.name || sv.host));
+    rm.title = "Disconnects its devices and takes the server off this list";
+    row.append(info, st, rm);
+    list.append(row);
+  }
+  const found = $("found");
+  found.replaceChildren(el("span", "", s.found.length ? "Found on your network:" : "No other servers found on your network."));
+  for (const f of s.found) {
+    found.append(button(f.name + " (" + shortAddr(f.addr) + ")", "quiet small",
+      () => act("/api/server/add", { host: f.addr, name: f.name })));
+  }
+
+  // Devices
+  if (busy() && !force) { drawn = ""; return; } // finish the device lists once the field is left
+  $("groupsBox").hidden = !s.groups.length;
+  $("groups").replaceChildren();
+  for (const g of s.groups) {
+    // A group is a panel of its own: a header row laid out like a device
+    // row (name, status, one main button, ⋯ for the rest), then its devices.
+    const panel = el("div", "panel");
+    const row = el("div", "grid head");
+    const isOpen = openGroups.has(g.name);
+    const toggle = button(isOpen ? "▾" : "▸", "ghost chev", () => {
+      isOpen ? openGroups.delete(g.name) : openGroups.add(g.name);
+      try { localStorage.setItem("groups", JSON.stringify([...openGroups])); } catch (e) {}
+      render(last, true);
+    }, (isOpen ? "Hide" : "Show") + " the devices in " + g.name);
+    toggle.setAttribute("aria-expanded", isOpen);
+    const lead = el("div", "lead");
+    lead.append(toggle);
+
+    const info = el("div", "info");
+    const combo = (s.shortcuts || {})["group:" + g.name];
+    const err = (s.shortcutErrors || {})["group:" + g.name];
+    const notes = [];
+    if (g.elsewhere) notes.push(g.elsewhere + " in use elsewhere");
+    if (combo) notes.push("⌨ " + combo);
+    info.append(el("div", "name", g.name));
+    if (notes.length) info.append(el("div", "sub", notes.join(" · ")));
+    if (err) info.append(el("div", "sub warnline", err));
+    info.style.cursor = "pointer";
+    info.onclick = toggle.onclick;
+
+    const allOn = g.total > 0 && g.connected === g.total;
+    const partly = g.connected > 0 && !allOn;
+    const st = el("div", "status " + (allOn ? "connected" : partly ? "connecting" : "disconnected"));
+    st.append(el("span", "dot"), el("span", "", g.total ? g.connected + " of " + g.total + " on" : "Not available"));
+
+    const actCell = el("div", "act");
+    let main;
+    if (allOn) {
+      main = button("Disconnect all", "quiet small", () => act("/api/group/connect", { group: g.name, on: false }), "Disconnect all devices in " + g.name);
+    } else if (g.elsewhere) {
+      main = button("Take over all", "small", () => act("/api/group/takeover", { group: g.name }), "Take over all devices in " + g.name);
+    } else {
+      main = button(partly ? "Connect rest" : "Connect all", "small", () => act("/api/group/connect", { group: g.name, on: true }), "Connect all devices in " + g.name);
+      main.disabled = !g.total;
+    }
+    actCell.append(main);
+
+    const toolsOpen = openTools.has(g.name);
+    const moreCell = el("div", "more");
+    const more = button("⋯", "ghost dots", () => {
+      toolsOpen ? openTools.delete(g.name) : openTools.add(g.name);
+      render(last, true);
+    }, "More for group " + g.name);
+    more.title = "Shortcut, rename, delete";
+    more.setAttribute("aria-expanded", toolsOpen);
+    moreCell.append(more);
+    row.append(lead, info, st, actCell, moreCell);
+    panel.append(row);
+
+    if (toolsOpen) {
+      const tools = el("div", "tools");
+      if (partly) {
+        tools.append(button("Disconnect all", "quiet small", () => act("/api/group/connect", { group: g.name, on: false }), "Disconnect all devices in " + g.name));
+      }
+      if (s.hotkeysSupported) {
+        tools.append(shortcutButton("group:" + g.name, combo, "Keyboard shortcut for " + g.name,
+          "Switches the group: on when it is not all connected here (taking devices from another computer if needed), off when it is"));
+      }
+      tools.append(button("Rename", "ghost", () => {
+        // Swap the group's name for a text box.
+        holdUntil = Date.now() + 800;
+        const input = el("input", "rename");
+        input.type = "text";
+        input.value = g.name;
+        input.maxLength = 30;
+        input.setAttribute("aria-label", "New name for group " + g.name);
+        let done = false;
+        const finish = save => {
+          if (done) return;
+          done = true;
+          holdUntil = 0;
+          input.blur();
+          const name = input.value.trim();
+          if (save && name && name !== g.name) {
+            if (openGroups.delete(g.name)) openGroups.add(name);
+            if (openTools.delete(g.name)) openTools.add(name);
+            try { localStorage.setItem("groups", JSON.stringify([...openGroups])); } catch (e) {}
+            act("/api/group/rename", { group: g.name, name });
+          } else if (last) render(last, true);
+        };
+        input.onkeydown = ev => {
+          if (ev.key === "Enter") finish(true);
+          if (ev.key === "Escape") finish(false);
+        };
+        input.onblur = () => {
+          if (Date.now() < holdUntil) return setTimeout(() => { if (!done) input.focus(); }, 0);
+          finish(true);
+        };
+        info.onclick = null;
+        info.style.cursor = "";
+        info.replaceChildren(input);
+        setTimeout(() => { if (!done) { input.focus(); input.select(); } }, 0);
+      }, "Rename group " + g.name));
+      const del = button("Delete group", "ghost", () => { openTools.delete(g.name); act("/api/group/delete", { group: g.name }); }, "Delete group " + g.name);
+      del.title = "Removes the group; its devices move back to Ungrouped";
+      tools.append(del);
+      panel.append(tools);
+    }
+
+    if (isOpen) {
+      let n = 0;
+      for (const sv of s.servers) {
+        for (const d of sv.devices) {
+          if (d.group !== g.name || (d.hidden && !showHidden)) continue;
+          panel.append(deviceItem(s, sv, d, true));
+          n++;
+        }
+      }
+      if (!n) panel.append(el("div", "empty", "None of this group's devices are available right now."));
+    }
+    $("groups").append(panel);
+  }
+
+  const box = $("deviceList");
+  box.replaceChildren();
+  $("devHead").hidden = !s.servers.length || s.groups.length > 0; // with groups, the "Ungrouped" folder takes over
+  if (!s.servers.length && $("setup").hidden) {
+    const p = el("div", "panel empty", "No server connected yet. ");
+    p.append(button("Find a server", "small", () => showTab("servers")));
+    box.append(p);
+  }
+  // Everything not in a group goes in one list, whatever server it is on.
+  const rows = [];
+  let hidden = 0, ungrouped = 0;
+  for (const sv of s.servers) {
+    for (const d of sv.devices) {
+      if (d.hidden) hidden++;
+      if (d.group) continue;
+      ungrouped++;
+      if (!d.hidden || showHidden) rows.push([sv, d]);
+    }
+  }
+  if (s.servers.length) {
+    const panel = el("div", "panel");
+    for (const sv of s.servers) {
+      const name = sv.name || shortAddr(sv.host);
+      let note = "";
+      if (!sv.ok) note = " is unreachable" + (sv.devices.length ? "; showing what it last offered" : "");
+      else if (!sv.devices.length) note = " is not sharing any devices";
+      if (note) {
+        const head = el("div", "srvhead");
+        head.append(el("b", "", name), el("span", "", note));
+        panel.append(head);
+      }
+    }
+    let folded = false;
+    if (s.groups.length && rows.length) {
+      // Shown the same way as a group, but without a connect-all button:
+      // these devices are connected one by one.
+      folded = ungroupedFolded;
+      const row = el("div", "grid head");
+      const toggle = button(folded ? "▸" : "▾", "ghost chev", () => {
+        ungroupedFolded = !ungroupedFolded;
+        try { localStorage.setItem("ungroupedFolded", ungroupedFolded ? "1" : ""); } catch (e) {}
+        render(last, true);
+      }, (folded ? "Show" : "Hide") + " the ungrouped devices");
+      toggle.setAttribute("aria-expanded", !folded);
+      const lead = el("div", "lead");
+      lead.append(toggle);
+      const info = el("div", "info");
+      const n = rows.filter(([, d]) => d.status === "connected").length;
+      info.append(el("div", "name", "Ungrouped"));
+      info.style.cursor = "pointer";
+      info.onclick = toggle.onclick;
+      const st = el("div", "status " + (n ? "connected" : "disconnected"));
+      st.append(el("span", "dot"), el("span", "", n + " of " + rows.length + " on"));
+      row.append(lead, info, st, el("div", "act"), el("div", "more"));
+      panel.append(row);
+    }
+    if (!rows.length && ungrouped) panel.append(el("div", "empty", "The ungrouped devices are hidden."));
+    if (!folded) for (const [sv, d] of rows) panel.append(deviceItem(s, sv, d));
+    if (panel.children.length) box.append(panel);
+  }
+  if (hidden) {
+    const p = el("div", "hiddenline");
+    p.append(button(showHidden ? "Stop showing hidden devices" : "Show " + hidden + " hidden device" + (hidden > 1 ? "s" : ""),
+      "ghost", () => { showHidden = !showHidden; render(last, true); }));
+    box.append(p);
+  } else {
+    showHidden = false;
+  }
+}
+
+function fail(e) {
+  $("banner").hidden = false;
+  $("banner").textContent = e.message && e.message !== "Failed to fetch" ? e.message : "This window lost contact with PulseUSB.";
+}
+
+$("hostForm").onsubmit = ev => {
+  ev.preventDefault();
+  const host = $("host").value.trim();
+  if (host) act("/api/server/add", { host, name: "" }).then(() => { $("host").value = ""; });
+};
+$("licBtn").onclick = async () => {
+  const box = $("licText");
+  if (!box.textContent) box.textContent = await (await fetch("/licenses.txt")).text();
+  box.hidden = !box.hidden;
+  $("licBtn").setAttribute("aria-expanded", !box.hidden);
+};
+$("driverBtn").onclick = () => act("/api/driver", {});
+$("bootFix").onclick = () => act("/api/startup/repair", {});
+$("installBtn").onclick = () => act("/api/install", {});
+const startup = () => act("/api/startup",
+  { autostart: $("startMode").value !== "off", minimized: $("minimized").checked,
+    minimizeToTray: $("toTray").checked, background: $("startMode").value === "boot" });
+for (const id of ["minimized", "toTray"]) $(id).onchange = startup;
+// "At boot" needs administrator permission once; if that is declined the
+// next update puts the menu back to what is actually set.
+$("startMode").onchange = () => { $("startMode").blur(); startup(); };
+$("theme").onchange = () => { $("theme").blur(); act("/api/theme", { theme: $("theme").value }); };
+
+// Updates: ask the app and let it answer the moment something changes (it
+// answers after a second regardless). A connect therefore shows as soon as
+// it has happened instead of at the next tick of a timer.
+let rev = -1;
+(async function follow() {
+  for (;;) {
+    try {
+      const s = await call(rev < 0 ? "/api/state" : "/api/wait?since=" + rev);
+      rev = s.rev;
+      render(s);
+      if (!pressing) renderSetup(s);
+    } catch (e) {
+      fail(e);
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+})();
+</script>
+</body>
+</html>

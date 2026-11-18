@@ -1,0 +1,8 @@
+/dist/
+# the usbip-win2 installer, dropped here to be bundled into the Windows setup
+/installer/vendor/*.exe
+/bin/
+*.exe
+/pulseusb-server
+/pulseusb-client
+/pulseusb-gui

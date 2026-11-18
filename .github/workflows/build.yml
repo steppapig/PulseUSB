@@ -1,0 +1,60 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Test
+        run: go test -race ./...
+      - name: Build
+        env:
+          CGO_ENABLED: "0"
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir dist
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-H=windowsgui" -o dist/PulseUSB.exe ./cmd/pulseusb-gui
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/pulseusb-client.exe ./cmd/pulseusb-client
+          sudo apt-get update -qq && sudo apt-get install -y -qq nsis
+          # Bundle the usbip-win2 driver installer into the Windows setup
+          # program, so installing does not depend on a download.
+          # If that ever fails, the setup program still works: it then
+          # downloads the driver while installing.
+          mkdir -p /tmp/usbip
+          if gh release download --repo vadimgrn/usbip-win2 --pattern '*x64*.exe' --dir /tmp/usbip; then
+            exe="$(ls /tmp/usbip/*.exe | grep -vi debug | head -1)"
+            if [ -n "$exe" ]; then cp "$exe" installer/vendor/usbip-win2-setup.exe; fi
+          fi
+          if [ ! -f installer/vendor/usbip-win2-setup.exe ]; then
+            echo "::warning::usbip-win2 installer not bundled; setup will download it"
+          fi
+          makensis -V2 -DVERSION="$(sed -n 's/^const Version = "\(.*\)"$/\1/p' internal/gui/engine.go)" installer/pulseusb.nsi
+          for arch in amd64 arm64; do
+            GOOS=linux GOARCH=$arch go build -trimpath -ldflags="-s -w" -o dist/pulseusb-linux-$arch ./cmd/pulseusb-gui
+            GOOS=linux GOARCH=$arch go build -trimpath -ldflags="-s -w" -o dist/pulseusb-server-linux-$arch ./cmd/pulseusb-server
+            GOOS=linux GOARCH=$arch go build -trimpath -ldflags="-s -w" -o dist/pulseusb-client-linux-$arch ./cmd/pulseusb-client
+          done
+          GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags="-s -w" -o dist/pulseusb-server-linux-armv7 ./cmd/pulseusb-server
+          # Checksums, so downloads can be checked against what was built here.
+          (cd dist && sha256sum * > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pulseusb
+          path: dist/
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
