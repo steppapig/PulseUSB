@@ -58,7 +58,7 @@ func (d *demo) Attached() (map[string]int, error) {
 }
 
 func (d *demo) Attach(host, busid string, _, _ bool) error {
-	if busid == "1-1.3" {
+	if busid == "1-2" { // the second server's device shows what a failure looks like
 		return errors.New("device is in use by another client")
 	}
 	d.mu.Lock()
@@ -80,11 +80,11 @@ func (d *demo) Detach(port int) error {
 }
 
 func (d *demo) Kinds(string) map[string]string {
-	return map[string]string{"1-1.1": "Game controller", "1-1.2": "Game controller", "1-1.3": "Keyboard and mouse"}
+	return map[string]string{"1-1.1": "Keyboard", "1-1.2": "Game controller", "1-1.3": "Keyboard and mouse"}
 }
 
 func (d *demo) Names(string) map[string]string {
-	return map[string]string{"1-1.1": "Example Racing Wheel Base", "1-1.2": "Example Load Cell Pedals"}
+	return map[string]string{"1-1.1": "Example Mechanical Keyboard", "1-1.2": "Example Wireless Controller"}
 }
 
 // In the demo, the pedals are in use on another computer until taken over.
@@ -105,5 +105,5 @@ func (d *demo) Release(host, busid string) error {
 }
 
 func (d *demo) Discover() []discover.Server {
-	return []discover.Server{{Name: "simrig", Addr: "192.168.1.50:3240"}, {Name: "workshop-pi", Addr: "192.168.1.77:3240"}}
+	return []discover.Server{{Name: "office-pi", Addr: "192.168.1.50:3240"}, {Name: "workshop-pi", Addr: "192.168.1.77:3240"}}
 }
