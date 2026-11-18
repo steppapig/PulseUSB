@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+
+PackageIdentifier: steppapig.PulseUSB
+PackageVersion: 1.0.0
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+- interactive
+- silent
+- silentWithProgress
+UpgradeBehavior: install
+ProductCode: PulseUSB
+ReleaseDate: 2026-11-18
+Dependencies:
+  PackageDependencies:
+  - PackageIdentifier: vadimgrn.usbip-win2
+AppsAndFeaturesEntries:
+- DisplayName: PulseUSB
+  Publisher: PulseUSB open-source project
+  ProductCode: PulseUSB
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/steppapig/PulseUSB/releases/download/v1.0.0/PulseUSB-Setup.exe
+  InstallerSha256: FE296C007FF227C7B2FC6FF1EDB3A9A7969CCA99C59AB3D1087C6AC0C715593D
+ManifestType: installer
+ManifestVersion: 1.12.0
