@@ -1,7 +1,7 @@
 ; Windows setup program for PulseUSB. Build from the repository root, after
 ; building dist/PulseUSB.exe:
 ;
-;   makensis -DVERSION=0.24.2 installer/pulseusb.nsi
+;   makensis -DVERSION=1.0.0 installer/pulseusb.nsi
 ;
 ; It installs for the current user only (no administrator rights needed).
 ; The chosen folder is recorded in the registry, where the app looks it up.

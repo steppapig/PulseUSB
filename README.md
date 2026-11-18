@@ -112,6 +112,4 @@ PULSEUSB_DEMO=1 go run ./cmd/pulseusb-gui
 PulseUSB is released under the [MIT licence](LICENSE). It builds on
 [usbip-win2](https://github.com/vadimgrn/usbip-win2), the
 [usb.ids](http://www.linux-usb.org/usb-ids.html) database and the Go
-libraries listed in [THIRD_PARTY.md](THIRD_PARTY.md). Windows releases are
-signed under the [code signing policy](CODE_SIGNING_POLICY.md) once signing
-is in place.
+libraries listed in [THIRD_PARTY.md](THIRD_PARTY.md).

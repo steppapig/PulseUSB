@@ -23,7 +23,7 @@ import (
 )
 
 // Version identifies this build; a newer build replaces a running older one.
-const Version = "0.24.2"
+const Version = "1.0.0"
 
 // Backend is what the engine needs from the system; tests substitute it.
 type Backend interface {

@@ -38,9 +38,10 @@ does the same.
 
 ## Windows Defender or SmartScreen warns
 
-Until releases are code-signed, Windows may warn about the installer. The
-releases are built from this repository by GitHub Actions; compare the
-file's SHA-256 with `SHA256SUMS` in the release.
+PulseUSB is not code-signed, so Windows may warn about the installer the
+first time: choose **More info → Run anyway**. Releases are built from this
+repository by GitHub Actions; to check a download, compare its SHA-256
+(`Get-FileHash PulseUSB-Setup.exe`) with `SHA256SUMS.txt` in the release.
 
 ## Laptop as a server
 

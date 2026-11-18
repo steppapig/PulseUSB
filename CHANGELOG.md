@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0
+
+First stable release.
+
+- Demo mode shows neutral example devices.
+- Documentation rewritten: a shorter README, with troubleshooting and
+  reference pages under `docs/`.
+- Windows builds are not code-signed; every release includes SHA-256
+  checksums of its files.
+
 ## 0.24.2
 
 First public release. Highlights of what PulseUSB does:

@@ -15,11 +15,6 @@ jobs:
     env:
       CGO_ENABLED: "0"
       GH_TOKEN: ${{ github.token }}
-      # Windows programs are signed through SignPath for releases (version
-      # tags) once the repository has the SIGNPATH_API_TOKEN secret and the
-      # SIGNPATH_ORGANIZATION_ID variable. Until then, and for every other
-      # build, nothing is signed. See SIGNING.md.
-      SIGN: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_ORGANIZATION_ID != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -35,31 +30,6 @@ jobs:
           mkdir dist
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-H=windowsgui" -o dist/PulseUSB.exe ./cmd/pulseusb-gui
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/pulseusb-client.exe ./cmd/pulseusb-client
-          mkdir -p to-sign && cp dist/PulseUSB.exe dist/pulseusb-client.exe to-sign/
-
-      # Signing, part 1: the programs, before the setup program packs them.
-      - name: Upload the programs for signing
-        id: unsigned-programs
-        if: env.SIGN == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: unsigned-programs
-          path: to-sign/
-      - name: Sign the programs
-        if: env.SIGN == 'true'
-        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'PulseUSB' }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
-          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ steps.unsigned-programs.outputs.artifact-id }}
-          wait-for-completion-timeout-in-seconds: 3600 # time to approve the request in SignPath
-          output-artifact-directory: signed-programs
-      - name: Use the signed programs
-        if: env.SIGN == 'true'
-        run: cp signed-programs/PulseUSB.exe signed-programs/pulseusb-client.exe dist/
 
       - name: Build the setup program
         run: |
@@ -76,31 +46,7 @@ jobs:
             echo "::warning::usbip-win2 installer not bundled; setup will download it"
           fi
           makensis -V2 -DVERSION="$(sed -n 's/^const Version = "\(.*\)"$/\1/p' internal/gui/engine.go)" installer/pulseusb.nsi
-          mkdir -p setup-to-sign && cp dist/PulseUSB-Setup.exe setup-to-sign/
 
-      # Signing, part 2: the setup program, built around the signed app.
-      - name: Upload the setup program for signing
-        id: unsigned-setup
-        if: env.SIGN == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: unsigned-setup
-          path: setup-to-sign/
-      - name: Sign the setup program
-        if: env.SIGN == 'true'
-        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'PulseUSB' }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
-          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ steps.unsigned-setup.outputs.artifact-id }}
-          wait-for-completion-timeout-in-seconds: 3600
-          output-artifact-directory: signed-setup
-      - name: Use the signed setup program
-        if: env.SIGN == 'true'
-        run: cp signed-setup/PulseUSB-Setup.exe dist/
 
       - name: Build the Linux programs
         run: |
